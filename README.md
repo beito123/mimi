@@ -2,6 +2,12 @@
 
 developing now...
 
+## License
+
+These codes are licensed under MIT License.
+
+See LICENSE file.
+
 ## Special Thanks
 
 ### Design Reference
