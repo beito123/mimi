@@ -6,8 +6,9 @@ type Config struct {
 }
 
 type ServerConfig struct {
-	Port  int  `toml:"port"`
-	Debug bool `toml:"debug"`
+	Token string `toml:"token"`
+	Port  int    `toml:"port"`
+	Debug bool   `toml:"debug"`
 }
 
 type LoaderConfig struct {
