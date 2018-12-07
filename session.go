@@ -31,10 +31,12 @@ const (
 )
 
 type PacketHandler interface {
+	HandlePacket(Packet)
 }
 
 type SessionManager struct {
-	Handlers []*PacketHandler
+	Handlers []PacketHandler
+	Error    *ErrorHandler
 
 	sessions cmap.ConcurrentMap // map[uuid.UUID]*Session
 }
@@ -71,16 +73,19 @@ func (sm *SessionManager) rangeSessions(f func(session *Session) bool) {
 }
 
 func (sm *SessionManager) Start(ctx context.Context) {
-	for {
+	ticker := time.NewTicker(UpdateInterval)
+	for _ = range ticker.C {
 		select {
 		case <-ctx.Done():
 			sm.closeSessions()
-			break
+
+			ticker.Stop()
+			return
 		default:
 		}
 
 		sm.rangeSessions(func(session *Session) bool {
-			session.Update()
+			session.Update(sm.Handlers)
 
 			return true
 		})
@@ -105,6 +110,7 @@ func (sm *SessionManager) NewSession(conn *websocket.Conn) error {
 		Conn:  conn,
 		State: StateConnecting,
 		UUID:  uid,
+		Error: sm.Error,
 	}
 
 	sm.setSession(session)
@@ -157,10 +163,11 @@ type Session struct {
 
 	UUID uuid.UUID
 
+	Error *ErrorHandler
+
 	receivedData chan []byte
 	sendData     chan []byte
-	errCh          chan error
-	closed         chan bool
+	closeCh      chan bool
 }
 
 func (session *Session) Addr() net.Addr {
@@ -169,24 +176,23 @@ func (session *Session) Addr() net.Addr {
 
 func (session *Session) Start() {
 
-	session.receivedData = make(chan []byte, 20)
-	session.sendData = make(chan []byte, 20)
-	session.errCh = make(chan error, 20)
+	session.receivedData = make(chan []byte, MaxReceiveStack)
+	session.sendData = make(chan []byte, MaxSendStack)
 
-	session.closed = make(chan bool)
+	session.closeCh = make(chan bool)
 
 	// Receive data
 	go func() {
 		for {
 			select {
-			case <-session.closed:
+			case <-session.closeCh:
 				return
 			default:
 			}
 
 			typ, data, err := session.Conn.ReadMessage()
 			if err != nil {
-				session.errCh <- err
+				session.Error.Handle(err)
 				session.Close()
 				break
 			}
@@ -197,7 +203,7 @@ func (session *Session) Start() {
 			case websocket.CloseMessage:
 				session.Close()
 			default:
-				session.errCh <- errors.New("unknown message type")
+				session.Error.Handle(errors.New("unknown message type"))
 			}
 		}
 	}()
@@ -205,12 +211,19 @@ func (session *Session) Start() {
 	// Send data
 	go func() {
 		for {
+			var data []byte
+
 			select {
-			case <-session.closed:
+			case <-session.closeCh:
 				return
-			default:
+			case n := <-session.sendData:
+				data = n
 			}
 
+			err := session.Conn.WriteMessage(websocket.BinaryMessage, data)
+			if err != nil {
+				session.Error.Handle(err)
+			}
 		}
 	}()
 }
@@ -218,13 +231,32 @@ func (session *Session) Start() {
 func (session *Session) Close() {
 	// send close packet
 
-	session.closed <- true
+	close(session.closeCh)
 
 	session.Conn.Close()
 }
 
-func (session *Session) Update() {
+func (session *Session) Update(handlers []PacketHandler) {
+	var received [][]byte
+	for i := 0; i < MaxProcessData; i++ {
+		select {
+		case data := <-session.receivedData:
+			received = append(received, data)
+		default:
+			break
+		}
+	}
 
+	for _, data := range received {
+		pk, err := DecodePacket(data)
+		if err != nil {
+			session.Error.Handle(err)
+		}
+
+		for _, hand := range handlers {
+			hand.HandlePacket(pk)
+		}
+	}
 }
 
 func (session *Session) SendData(data []byte) error {

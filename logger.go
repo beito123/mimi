@@ -5,6 +5,24 @@ import (
 	"runtime"
 )
 
+// Error
+
+type ErrorReceiver interface {
+	HandleError(error)
+}
+
+type ErrorHandler struct {
+	receivers []ErrorReceiver
+}
+
+func (hand *ErrorHandler) Handle(err error) {
+	for _, recv := range hand.receivers {
+		recv.HandleError(err)
+	}
+}
+
+// Dumper
+
 const MaxStacksCount = 30
 
 func Dump(err error) {

@@ -10,7 +10,6 @@ var (
 )
 
 type Server struct {
-	
 }
 
 func NewServer(conf config.Config) (*Server, error) {
