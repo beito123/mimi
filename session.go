@@ -14,7 +14,7 @@ import (
 )
 
 var upgrader = websocket.Upgrader{
-	HandshakeTimeout: time.Second * 10,
+	HandshakeTimeout: HandshakeTimeout,
 	ReadBufferSize:   1024,
 	WriteBufferSize:  1024,
 	Error: func(w http.ResponseWriter, r *http.Request, status int, reason error) {
@@ -31,7 +31,7 @@ const (
 )
 
 type PacketHandler interface {
-	HandlePacket(Packet)
+	HandlePacket(*Session, Packet)
 }
 
 type SessionManager struct {
@@ -126,17 +126,7 @@ func (sm *SessionManager) SendPacket(uid uuid.UUID, pk Packet) error {
 		return errors.New("couldn't find a session")
 	}
 
-	data, err := EncodePacket(pk)
-	if err != nil {
-		return err
-	}
-
-	err = session.SendData(data)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return session.SendPacket(pk)
 }
 
 func (sm *SessionManager) SendPacketAll(pk Packet) error {
@@ -157,17 +147,24 @@ func (sm *SessionManager) SendPacketAll(pk Packet) error {
 	return err
 }
 
+var errClosed = errors.New("already closed")
+
 type Session struct {
 	Conn  *websocket.Conn
 	State ConnectionState
 
-	UUID uuid.UUID
+	UUID       uuid.UUID
+	ClientUUID uuid.UUID
 
 	Error *ErrorHandler
 
 	receivedData chan []byte
 	sendData     chan []byte
 	closeCh      chan bool
+}
+
+func (session *Session) HandleError(err error) {
+	session.Error.Handle(errors.New("Session IP:" + session.Addr().String() + " " + err.Error()))
 }
 
 func (session *Session) Addr() net.Addr {
@@ -192,7 +189,7 @@ func (session *Session) Start() {
 
 			typ, data, err := session.Conn.ReadMessage()
 			if err != nil {
-				session.Error.Handle(err)
+				session.HandleError(err)
 				session.Close()
 				break
 			}
@@ -203,7 +200,7 @@ func (session *Session) Start() {
 			case websocket.CloseMessage:
 				session.Close()
 			default:
-				session.Error.Handle(errors.New("unknown message type"))
+				session.HandleError(errors.New("unknown message type"))
 			}
 		}
 	}()
@@ -222,18 +219,25 @@ func (session *Session) Start() {
 
 			err := session.Conn.WriteMessage(websocket.BinaryMessage, data)
 			if err != nil {
-				session.Error.Handle(err)
+				session.HandleError(err)
 			}
 		}
 	}()
 }
 
 func (session *Session) Close() {
-	// send close packet
+	if session.State != StateDisconnected {
+		return
+	}
+
+	session.sendData = make(chan []byte, MaxSendStack)
+	session.SendPacket(&DisconnectionNotification{})
 
 	close(session.closeCh)
 
 	session.Conn.Close()
+
+	session.State = StateDisconnected
 }
 
 func (session *Session) Update(handlers []PacketHandler) {
@@ -250,16 +254,140 @@ func (session *Session) Update(handlers []PacketHandler) {
 	for _, data := range received {
 		pk, err := DecodePacket(data)
 		if err != nil {
-			session.Error.Handle(err)
+			session.HandleError(err)
 		}
 
 		for _, hand := range handlers {
-			hand.HandlePacket(pk)
+			hand.HandlePacket(session, pk)
 		}
 	}
 }
 
+func (session *Session) SendPacket(pk Packet) error {
+	data, err := EncodePacket(pk)
+	if err != nil {
+		return err
+	}
+
+	return session.SendData(data)
+}
+
 func (session *Session) SendData(data []byte) error {
-	//
+	if session.State == StateDisconnected {
+		return errClosed
+	}
+
+	session.sendData <- data // bad hack // TODO: fix blocking
+
 	return nil
+}
+
+type ServerSessionHandler struct {
+	IngoreProtocol bool
+}
+
+func (sp *ServerSessionHandler) HandlePacket(session Session, pk Packet) {
+	switch npk := pk.(type) {
+	case *ConnectionRequest:
+		if session.State != StateConnecting {
+			//
+
+			return
+		}
+
+		if npk.ClientProtocol != ProtocolVersion && !sp.IngoreProtocol {
+			session.SendPacket(&IncompatibleProtocol{
+				Protocol: ProtocolVersion,
+			})
+
+			session.Close()
+
+			return
+		}
+
+		uid, err := uuid.FromString(npk.ClientUUID)
+		if err != nil {
+			session.SendPacket(&BadRequest{
+				Message: "couldn't parse a uuid",
+			})
+
+			session.HandleError(err)
+
+			session.Close()
+
+			return
+		}
+
+		session.ClientUUID = uid
+
+		session.State = StateConnected
+
+		session.SendPacket(&ConnectionResponse{
+			Time: time.Now().Unix(),
+		})
+
+		logger.Debugf("Established new connection IP: %s CID: %s", session.Addr().String(), session.ClientUUID.String())
+	case *DisconnectionNotification:
+		logger.Debugf("Received disconnection packet IP: %s CID: %s", session.Addr().String(), session.ClientUUID.String())
+
+		if session.State != StateDisconnected {
+			session.Close()
+		}
+	default:
+		logger.Debugf("Received unknown packet ID:%d", npk.ID())
+	}
+}
+
+type ClientSessionHandler struct {
+	IngoreProtocol bool
+}
+
+func (sp *ClientSessionHandler) HandlePacket(session Session, pk Packet) {
+	switch npk := pk.(type) {
+	case *ConnectionOne:
+		logger.Debugf("Received Connection One packet")
+
+		if session.State != StateConnecting {
+			//
+
+			return
+		}
+
+		uid, err := uuid.FromString(npk.UUID)
+		if err != nil {
+			session.HandleError(err)
+
+			session.Close()
+			return
+		}
+
+		session.UUID = uid
+
+		session.SendPacket(&ConnectionRequest{
+			ClientProtocol: ProtocolVersion,
+			ClientUUID:     session.ClientUUID.String(),
+		})
+
+		logger.Debugf("Send Connection Request packet")
+	case *ConnectionResponse:
+		logger.Debugf("Received Connection Response packet")
+
+		if session.State != StateConnecting {
+			//
+
+			return
+		}
+
+		session.State = StateConnected
+
+		logger.Debugf("Established a connection for a server")
+	case *DisconnectionNotification:
+		logger.Debugf("Received disconnection packet IP: %s CID: %s", session.Addr().String(), session.ClientUUID.String())
+
+		if session.State != StateDisconnected {
+			session.Close()
+		}
+	default:
+		logger.Debugf("Received unknown packet ID:%d", npk.ID())
+	}
 }

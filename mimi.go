@@ -5,12 +5,14 @@ import (
 )
 
 const (
-	Version    = "1.0.0"
-	APIVersion = 1
+	Version         = "1.0.0"
+	ProtocolVersion = 1
 )
 
 const (
 	QueryToken = "token" // ?token=jagajaga
+
+	HandshakeTimeout = 10 * time.Second
 )
 
 const (

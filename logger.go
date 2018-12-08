@@ -3,7 +3,13 @@ package mimi
 import (
 	"regexp"
 	"runtime"
+
+	"github.com/sirupsen/logrus"
 )
+
+// Logger
+
+var logger = logrus.New()
 
 // Error
 

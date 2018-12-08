@@ -6,12 +6,27 @@ const (
 	IDConnectionOne = iota
 	IDConnectionRequest
 	IDConnectionResponse
+	IDIncompatibleProtocol
+	IDBadRequest
+	IDDisconnectionNotification
 )
 
-var Packets = map[byte]Packet{
-	IDConnectionOne:      &ConnectionOne{},
-	IDConnectionRequest:  &ConnectionRequest{},
-	IDConnectionResponse: &ConnectionResponse{},
+var Protocol = map[byte]Packet{
+	IDConnectionOne:             &ConnectionOne{},
+	IDConnectionRequest:         &ConnectionRequest{},
+	IDConnectionResponse:        &ConnectionResponse{},
+	IDIncompatibleProtocol:      &IncompatibleProtocol{},
+	IDBadRequest:                &BadRequest{},
+	IDDisconnectionNotification: &DisconnectionNotification{},
+}
+
+func GetPacket(id byte) (Packet, bool) {
+	pk, ok := Protocol[id]
+	if !ok {
+		return nil, false
+	}
+
+	return pk.New(), true
 }
 
 // Packet Format:
@@ -39,7 +54,7 @@ func DecodePacket(b []byte) (Packet, error) {
 
 	id := b[0]
 
-	pk, ok := Packets[id]
+	pk, ok := GetPacket(id)
 	if !ok {
 		return nil, errors.New("unknown packet")
 	}
@@ -60,8 +75,8 @@ type Packet interface {
 // ConnectionOne is a first packet from server
 // It notifies that connected with server
 type ConnectionOne struct {
-	UUID string `json:"uuid"`
-	Time int    `json:"time"`
+	UUID string `json:"uuid"` // Management UUID in server side
+	Time int64  `json:"time"` // Connected Time format: unix timestamp (second)
 }
 
 func (ConnectionOne) ID() byte {
@@ -75,6 +90,8 @@ func (ConnectionOne) New() Packet {
 // ConnectionRequest is a packet
 // Client -> Server
 type ConnectionRequest struct {
+	ClientProtocol int    `json:"protocol"`
+	ClientUUID     string `json:"cid"`
 }
 
 func (ConnectionRequest) ID() byte {
@@ -86,8 +103,9 @@ func (ConnectionRequest) New() Packet {
 }
 
 // ConnectionResponse is a packet
-// Server -> Client
+// Client -> Server
 type ConnectionResponse struct {
+	Time int64 `json:"time"`
 }
 
 func (ConnectionResponse) ID() byte {
@@ -96,4 +114,47 @@ func (ConnectionResponse) ID() byte {
 
 func (ConnectionResponse) New() Packet {
 	return new(ConnectionResponse)
+}
+
+// IncompatibleProtocol is a packet
+// If a client is received, the connection is closed.
+// Server -> Client
+type IncompatibleProtocol struct {
+	Protocol int `json:"protocol"`
+}
+
+func (IncompatibleProtocol) ID() byte {
+	return IDIncompatibleProtocol
+}
+
+func (IncompatibleProtocol) New() Packet {
+	return new(IncompatibleProtocol)
+}
+
+// BadRequest is a packet
+// If a client is received, the connection is closed.
+// Server -> Client
+type BadRequest struct {
+	Message string `json:"message"`
+}
+
+func (BadRequest) ID() byte {
+	return IDBadRequest
+}
+
+func (BadRequest) New() Packet {
+	return new(BadRequest)
+}
+
+// DisconnectionNotification is a packet
+// Client -> Server or Server -> Client
+type DisconnectionNotification struct {
+}
+
+func (DisconnectionNotification) ID() byte {
+	return IDDisconnectionNotification
+}
+
+func (DisconnectionNotification) New() Packet {
+	return new(DisconnectionNotification)
 }

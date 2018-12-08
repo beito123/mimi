@@ -1,12 +1,7 @@
 package mimi
 
 import (
-	"github.com/sirupsen/logrus"
 	"gitlab.com/beito123/mimi/config"
-)
-
-var (
-	logger = logrus.New()
 )
 
 type Server struct {
