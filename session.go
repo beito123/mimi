@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"time"
 
+	"gitlab.com/beito123/mimi/pks"
+
 	"github.com/satori/go.uuid"
 
 	"github.com/gorilla/websocket"
@@ -31,7 +33,7 @@ const (
 )
 
 type PacketHandler interface {
-	HandlePacket(*Session, Packet)
+	HandlePacket(*Session, pks.Packet)
 }
 
 type SessionManager struct {
@@ -120,7 +122,7 @@ func (sm *SessionManager) NewSession(conn *websocket.Conn) error {
 	return nil
 }
 
-func (sm *SessionManager) SendPacket(uid uuid.UUID, pk Packet) error {
+func (sm *SessionManager) SendPacket(uid uuid.UUID, pk pks.Packet) error {
 	session, ok := sm.getSession(uid)
 	if !ok {
 		return errors.New("couldn't find a session")
@@ -129,8 +131,8 @@ func (sm *SessionManager) SendPacket(uid uuid.UUID, pk Packet) error {
 	return session.SendPacket(pk)
 }
 
-func (sm *SessionManager) SendPacketAll(pk Packet) error {
-	data, err := EncodePacket(pk)
+func (sm *SessionManager) SendPacketAll(pk pks.Packet) error {
+	data, err := pks.EncodePacket(pk)
 	if err != nil {
 		return err
 	}
@@ -231,7 +233,7 @@ func (session *Session) Close() {
 	}
 
 	session.sendData = make(chan []byte, MaxSendStack)
-	session.SendPacket(&DisconnectionNotification{})
+	session.SendPacket(&pks.DisconnectionNotification{})
 
 	close(session.closeCh)
 
@@ -252,7 +254,7 @@ func (session *Session) Update(handlers []PacketHandler) {
 	}
 
 	for _, data := range received {
-		pk, err := DecodePacket(data)
+		pk, err := pks.DecodePacket(data)
 		if err != nil {
 			session.HandleError(err)
 		}
@@ -263,8 +265,8 @@ func (session *Session) Update(handlers []PacketHandler) {
 	}
 }
 
-func (session *Session) SendPacket(pk Packet) error {
-	data, err := EncodePacket(pk)
+func (session *Session) SendPacket(pk pks.Packet) error {
+	data, err := pks.EncodePacket(pk)
 	if err != nil {
 		return err
 	}
@@ -286,9 +288,9 @@ type ServerSessionHandler struct {
 	IngoreProtocol bool
 }
 
-func (sp *ServerSessionHandler) HandlePacket(session Session, pk Packet) {
+func (sp *ServerSessionHandler) HandlePacket(session Session, pk pks.Packet) {
 	switch npk := pk.(type) {
-	case *ConnectionRequest:
+	case *pks.ConnectionRequest:
 		if session.State != StateConnecting {
 			//
 
@@ -296,7 +298,7 @@ func (sp *ServerSessionHandler) HandlePacket(session Session, pk Packet) {
 		}
 
 		if npk.ClientProtocol != ProtocolVersion && !sp.IngoreProtocol {
-			session.SendPacket(&IncompatibleProtocol{
+			session.SendPacket(&pks.IncompatibleProtocol{
 				Protocol: ProtocolVersion,
 			})
 
@@ -307,7 +309,7 @@ func (sp *ServerSessionHandler) HandlePacket(session Session, pk Packet) {
 
 		uid, err := uuid.FromString(npk.ClientUUID)
 		if err != nil {
-			session.SendPacket(&BadRequest{
+			session.SendPacket(&pks.BadRequest{
 				Message: "couldn't parse a uuid",
 			})
 
@@ -322,12 +324,12 @@ func (sp *ServerSessionHandler) HandlePacket(session Session, pk Packet) {
 
 		session.State = StateConnected
 
-		session.SendPacket(&ConnectionResponse{
+		session.SendPacket(&pks.ConnectionResponse{
 			Time: time.Now().Unix(),
 		})
 
 		logger.Debugf("Established new connection IP: %s CID: %s", session.Addr().String(), session.ClientUUID.String())
-	case *DisconnectionNotification:
+	case *pks.DisconnectionNotification:
 		logger.Debugf("Received disconnection packet IP: %s CID: %s", session.Addr().String(), session.ClientUUID.String())
 
 		if session.State != StateDisconnected {
@@ -342,9 +344,9 @@ type ClientSessionHandler struct {
 	IngoreProtocol bool
 }
 
-func (sp *ClientSessionHandler) HandlePacket(session Session, pk Packet) {
+func (sp *ClientSessionHandler) HandlePacket(session Session, pk pks.Packet) {
 	switch npk := pk.(type) {
-	case *ConnectionOne:
+	case *pks.ConnectionOne:
 		logger.Debugf("Received Connection One packet")
 
 		if session.State != StateConnecting {
@@ -363,13 +365,13 @@ func (sp *ClientSessionHandler) HandlePacket(session Session, pk Packet) {
 
 		session.UUID = uid
 
-		session.SendPacket(&ConnectionRequest{
+		session.SendPacket(&pks.ConnectionRequest{
 			ClientProtocol: ProtocolVersion,
 			ClientUUID:     session.ClientUUID.String(),
 		})
 
 		logger.Debugf("Send Connection Request packet")
-	case *ConnectionResponse:
+	case *pks.ConnectionResponse:
 		logger.Debugf("Received Connection Response packet")
 
 		if session.State != StateConnecting {
@@ -381,7 +383,7 @@ func (sp *ClientSessionHandler) HandlePacket(session Session, pk Packet) {
 		session.State = StateConnected
 
 		logger.Debugf("Established a connection for a server")
-	case *DisconnectionNotification:
+	case *pks.DisconnectionNotification:
 		logger.Debugf("Received disconnection packet IP: %s CID: %s", session.Addr().String(), session.ClientUUID.String())
 
 		if session.State != StateDisconnected {

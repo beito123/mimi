@@ -4,9 +4,12 @@ import (
 	"gitlab.com/beito123/mimi/config"
 )
 
-type Server struct {
+func StartServer(conf config.Config) (*Server, error) {
+	ser := &Server{}
+	
+	return ser, nil
 }
 
-func NewServer(conf config.Config) (*Server, error) {
-	return &Server{}, nil
+type Server struct {
+	Config config.Config
 }
