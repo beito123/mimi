@@ -1,25 +1,43 @@
 package mimi
 
+/*
+ * mimi
+ *
+ * Copyright (c) 2018 beito
+ *
+ * This software is released under the MIT License.
+ * http://opensource.org/licenses/mit-license.php
+**/
+
 import (
 	"bufio"
+	"io"
 	"os/exec"
 )
 
 type Cmder struct {
-	Dir    string
-	LineCh chan string
-	ErrCh  chan error
+	WorkingDir string
+
+	lineCh chan string
+	errCh  chan error
+	sendCh chan string
 }
 
 func (cmder *Cmder) Start(program string, param ...string) error {
-	cmder.LineCh = make(chan string, 10)
-	cmder.ErrCh = make(chan error, 1)
+	cmder.lineCh = make(chan string, 10)
+	cmder.sendCh = make(chan string, 10)
+	cmder.errCh = make(chan error, 1)
 
 	cmd := exec.Command(program, param...)
 
-	cmd.Dir = cmder.Dir
+	cmd.Dir = cmder.WorkingDir
 
 	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return err
+	}
+
+	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return err
 	}
@@ -41,12 +59,23 @@ func (cmder *Cmder) Start(program string, param ...string) error {
 
 		scanner := bufio.NewScanner(stdout)
 		for scanner.Scan() {
-			cmder.LineCh <- scanner.Text()
+			cmder.lineCh <- scanner.Text()
 		}
 
 		err = cmd.Wait()
 		if err != nil {
-			cmder.ErrCh <- err
+			cmder.errCh <- err
+		}
+	}()
+
+	go func() {
+		select {
+		case str, ok := <-cmder.sendCh:
+			if ok {
+				return
+			}
+
+			io.WriteString(stdin, str)
 		}
 	}()
 
@@ -58,19 +87,24 @@ func (cmder *Cmder) Close() {
 }
 
 func (cmder *Cmder) close() {
-	close(cmder.ErrCh)
-	close(cmder.LineCh)
+	close(cmder.errCh)
+	close(cmder.lineCh)
+	close(cmder.sendCh)
 }
 
 func (cmder *Cmder) Line() (string, bool) {
 	select {
-	case err, ok := <-cmder.ErrCh:
+	case err, ok := <-cmder.errCh:
 		if ok {
 			return err.Error(), true // ummm...
 		}
-	case line, ok := <-cmder.LineCh:
+	case line, ok := <-cmder.lineCh:
 		return line, ok
 	}
 
 	return "", false
+}
+
+func (cmder *Cmder) Send(str string) {
+	cmder.sendCh <- str
 }

@@ -1,10 +1,22 @@
 package mimi
 
+/*
+ * mimi
+ *
+ * Copyright (c) 2018 beito
+ *
+ * This software is released under the MIT License.
+ * http://opensource.org/licenses/mit-license.php
+**/
+
 import (
 	"errors"
 	"net"
+	"os"
+	"path/filepath"
+	"runtime"
 
-	"github.com/json-iterator/go"
+	jsoniter "github.com/json-iterator/go"
 )
 
 var json = jsoniter.ConfigCompatibleWithStandardLibrary
@@ -21,4 +33,27 @@ func IP(addr string) (net.IP, error) {
 	}
 
 	return ip, nil
+}
+
+// File
+
+func GetDir(path string) string {
+	return filepath.Dir(filepath.Clean(path))
+}
+
+func ExistFile(file string) bool {
+	f, err := os.Stat(file)
+	return err == nil && !f.IsDir()
+}
+
+func ExistDir(dir string) bool {
+	f, err := os.Stat(dir)
+
+	return err == nil && f.IsDir()
+}
+
+// Runtime
+
+func IsWin() bool {
+	return runtime.GOOS == "windows"
 }

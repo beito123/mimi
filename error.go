@@ -1,7 +1,16 @@
 package mimi
 
+/*
+ * mimi
+ *
+ * Copyright (c) 2018 beito
+ *
+ * This software is released under the MIT License.
+ * http://opensource.org/licenses/mit-license.php
+**/
+
 const (
-	ErrID = iota
+	ErrIDJaga = iota
 )
 
 type Error struct {
@@ -10,8 +19,8 @@ type Error struct {
 }
 
 var (
-	ErrAA = &Error{
-		ID:      ErrID,
+	ErrJaga = &Error{
+		ID:      ErrIDJaga,
 		Message: "jagajaga",
 	}
 )

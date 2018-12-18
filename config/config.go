@@ -1,5 +1,14 @@
 package config
 
+/*
+ * mimi
+ *
+ * Copyright (c) 2018 beito
+ *
+ * This software is released under the MIT License.
+ * http://opensource.org/licenses/mit-license.php
+**/
+
 type Config struct {
 	Server      ServerConfig      `toml:"server"`
 	Loader      []LoaderConfig    `toml:"loaders"`
@@ -13,6 +22,8 @@ type ServerConfig struct {
 }
 
 type LoaderConfig struct {
+	Name string `toml:"name"`
+	Type string `toml:"type"`
 	Path string `toml:"path"`
 }
 

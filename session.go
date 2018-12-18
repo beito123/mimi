@@ -1,5 +1,14 @@
 package mimi
 
+/*
+ * mimi
+ *
+ * Copyright (c) 2018 beito
+ *
+ * This software is released under the MIT License.
+ * http://opensource.org/licenses/mit-license.php
+**/
+
 import (
 	"context"
 	"errors"
@@ -9,10 +18,10 @@ import (
 
 	"gitlab.com/beito123/mimi/pks"
 
-	"github.com/satori/go.uuid"
+	uuid "github.com/satori/go.uuid"
 
 	"github.com/gorilla/websocket"
-	"github.com/orcaman/concurrent-map"
+	cmap "github.com/orcaman/concurrent-map"
 )
 
 var upgrader = websocket.Upgrader{
