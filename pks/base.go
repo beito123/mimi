@@ -16,7 +16,11 @@ import (
 
 // Packet is a simple packet interface
 type Packet interface {
+
+	// ID returns a packet ID
 	ID() byte
+
+	// New returns new object
 	New() Packet
 }
 

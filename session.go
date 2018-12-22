@@ -294,6 +294,8 @@ func (session *Session) SendData(data []byte) error {
 }
 
 type ServerSessionHandler struct {
+	ProgramManager *ProgramManager
+	ConsoleManager *ConsoleManager
 	IngoreProtocol bool
 }
 
@@ -338,6 +340,19 @@ func (sp *ServerSessionHandler) HandlePacket(session Session, pk pks.Packet) {
 		})
 
 		logger.Debugf("Established new connection IP: %s CID: %s", session.Addr().String(), session.ClientUUID.String())
+	case *pks.RequestProgramList:
+		logger.Debugf("Received a RequestProgramList packet")
+
+		rpk := &pks.ResponseProgramList{}
+
+		for _, p := range sp.ProgramManager.Programs {
+			rpk.Programs = append(rpk.Programs, pks.Program {
+				Name: p.Name,
+				LoaderName:  p.Loader.Name(),
+			})
+		}
+
+		session.SendPacket(rpk)
 	case *pks.DisconnectionNotification:
 		logger.Debugf("Received disconnection packet IP: %s CID: %s", session.Addr().String(), session.ClientUUID.String())
 
@@ -402,3 +417,4 @@ func (sp *ClientSessionHandler) HandlePacket(session Session, pk pks.Packet) {
 		logger.Debugf("Received unknown packet ID:%d", npk.ID())
 	}
 }
+

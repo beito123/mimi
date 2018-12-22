@@ -16,6 +16,18 @@ const (
 	IDIncompatibleProtocol
 	IDBadRequest
 	IDDisconnectionNotification
+	IDRequestProgramList
+	IDResponseProgramList
+	IDStartProgram
+	IDStopProgram
+	IDRestartProgram
+	IDEndProgram
+	IDRequestConsoleList
+	IDResponseConsoleList
+	IDJoinConsole
+	IDQuitConsole
+	IDConsoleMessage
+	IDSendCommand
 )
 
 var Protocol = map[byte]Packet{
@@ -25,4 +37,17 @@ var Protocol = map[byte]Packet{
 	IDIncompatibleProtocol:      &IncompatibleProtocol{},
 	IDBadRequest:                &BadRequest{},
 	IDDisconnectionNotification: &DisconnectionNotification{},
+	IDRequestProgramList:        &RequestProgramList{},
+	IDResponseProgramList:       &ResponseProgramList{},
+	IDStartProgram:              &StartProgram{},
+	IDStopProgram:               &StopProgram{},
+	IDRestartProgram:            &RestartProgram{},
+	IDEndProgram:                &EndProgram{},
+	IDRequestConsoleList:        &RequestConsoleList{},
+	IDResponseConsoleList:       &ResponseConsoleList{},
+	IDJoinConsole:               &JoinConsole{},
+	IDQuitConsole:               &QuitConsole{},
+	IDConsoleMessage:            &ConsoleMessage{},
+	IDSendCommand:               &SendCommand{},
 }
+

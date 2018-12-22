@@ -11,6 +11,7 @@ package mimi
 
 import (
 	"errors"
+	"math"
 	"net"
 	"os"
 	"path/filepath"
@@ -56,4 +57,14 @@ func ExistDir(dir string) bool {
 
 func IsWin() bool {
 	return runtime.GOOS == "windows"
+}
+
+// Math
+
+func MinInt(a int, b int) int {
+	return int(math.Min(float64(a), float64(b)))
+}
+
+func MaxInt(a int, b int) int {
+	return int(math.Max(float64(a), float64(b)))
 }

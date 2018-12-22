@@ -11,7 +11,7 @@ package config
 
 type Config struct {
 	Server      ServerConfig      `toml:"server"`
-	Loader      []LoaderConfig    `toml:"loaders"`
+	Programs      []ProgramConfig    `toml:"programs"`
 	Development DevelopmentConfig `toml:"dev"`
 }
 
@@ -21,10 +21,11 @@ type ServerConfig struct {
 	Debug bool   `toml:"debug"`
 }
 
-type LoaderConfig struct {
-	Name string `toml:"name"`
-	Type string `toml:"type"`
-	Path string `toml:"path"`
+type ProgramConfig struct {
+	Name    string            `toml:"name"`
+	Path    string            `toml:"path"`
+	Loader    string            `toml:"loader"`
+	LoaderOptions map[string]string `toml:"loader_options"`
 }
 
 type DevelopmentConfig struct {
