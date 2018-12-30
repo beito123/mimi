@@ -17,9 +17,9 @@ import (
 	"github.com/gorilla/websocket"
 	cmap "github.com/orcaman/concurrent-map"
 	uuid "github.com/satori/go.uuid"
-	"gitlab.com/beito123/mimi/pks"
+	"github.com/beito123/mimi/pks"
 
-	"gitlab.com/beito123/mimi"
+	"github.com/beito123/mimi"
 )
 
 type SessionManager struct {

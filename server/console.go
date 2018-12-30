@@ -14,7 +14,7 @@ import (
 	"context"
 
 	uuid "github.com/satori/go.uuid"
-	"gitlab.com/beito123/mimi/util"
+	"github.com/beito123/mimi/util"
 )
 
 type ConsoleManager struct {

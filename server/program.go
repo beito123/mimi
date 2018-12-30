@@ -14,7 +14,7 @@ import (
 	"regexp"
 	"strings"
 
-	"gitlab.com/beito123/mimi/config"
+	"github.com/beito123/mimi/config"
 )
 
 var RegOnlyAlphabetNumber = regexp.MustCompile("^[a-zA-Z0-9]+$")

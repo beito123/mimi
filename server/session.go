@@ -13,8 +13,8 @@ import (
 	"errors"
 	"time"
 
-	"gitlab.com/beito123/mimi"
-	"gitlab.com/beito123/mimi/pks"
+	"github.com/beito123/mimi"
+	"github.com/beito123/mimi/pks"
 )
 
 type ServerSession struct {

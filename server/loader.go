@@ -14,7 +14,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"gitlab.com/beito123/mimi/util"
+	"github.com/beito123/mimi/util"
 )
 
 type LoaderManager struct {

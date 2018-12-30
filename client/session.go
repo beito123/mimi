@@ -10,8 +10,8 @@ package client
 **/
 
 import (
-	"gitlab.com/beito123/mimi"
-	"gitlab.com/beito123/mimi/pks"
+	"github.com/beito123/mimi"
+	"github.com/beito123/mimi/pks"
 )
 
 type ClientSessionHandler struct {

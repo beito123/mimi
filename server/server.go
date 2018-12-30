@@ -10,7 +10,7 @@ package server
 **/
 
 import (
-	"gitlab.com/beito123/mimi/config"
+	"github.com/beito123/mimi/config"
 
 	"github.com/sirupsen/logrus"
 )

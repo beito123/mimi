@@ -13,8 +13,8 @@ import (
 	"github.com/gorilla/websocket"
 	"net/http"
 
-	"gitlab.com/beito123/mimi"
-	"gitlab.com/beito123/mimi/util"
+	"github.com/beito123/mimi"
+	"github.com/beito123/mimi/util"
 )
 
 var upgrader = websocket.Upgrader{

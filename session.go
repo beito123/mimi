@@ -13,7 +13,7 @@ import (
 	"errors"
 	"net"
 
-	"gitlab.com/beito123/mimi/pks"
+	"github.com/beito123/mimi/pks"
 
 	uuid "github.com/satori/go.uuid"
 	logger "github.com/sirupsen/logrus"
