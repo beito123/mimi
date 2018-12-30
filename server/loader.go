@@ -1,4 +1,4 @@
-package mimi
+package server
 
 /*
  * mimi
@@ -13,6 +13,8 @@ import (
 	"errors"
 	"path/filepath"
 	"strings"
+
+	"gitlab.com/beito123/mimi/util"
 )
 
 type LoaderManager struct {
@@ -71,7 +73,7 @@ func (loader *PMMPLoader) Init(path string, options map[string]string) (err erro
 	if ok {
 		loader.PHPPath = phpPath
 	} else {
-		if IsWin() {
+		if util.IsWin() {
 			loader.PHPPath = loader.path + "/bin/php/php.exe"
 		} else {
 			loader.PHPPath = loader.path + "/bin/php/php"
@@ -82,7 +84,7 @@ func (loader *PMMPLoader) Init(path string, options map[string]string) (err erro
 	if ok {
 		loader.MainPath = mainPath
 	} else {
-		if ExistFile(loader.path + "/src/pocketmine/PocketMine.php") {
+		if util.ExistFile(loader.path + "/src/pocketmine/PocketMine.php") {
 			loader.MainPath = loader.path + "/src/pocketmine/PocketMine.php"
 		} else {
 			loader.MainPath = loader.path + "/PocketMine-MP.phar"
@@ -97,11 +99,11 @@ func (loader *PMMPLoader) Init(path string, options map[string]string) (err erro
 	}
 
 	// check
-	if ExistFile(loader.Program()) {
+	if util.ExistFile(loader.Program()) {
 		return errors.New("Couldn't find php program")
 	}
 
-	if ExistFile(loader.Target()) {
+	if util.ExistFile(loader.Target()) {
 		return errors.New("Couldn't find PMMP program")
 	}
 

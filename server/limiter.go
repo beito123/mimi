@@ -1,4 +1,4 @@
-package mimi
+package server
 
 /*
  * mimi

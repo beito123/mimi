@@ -1,4 +1,4 @@
-package mimi
+package server
 
 /*
  * mimi
@@ -14,8 +14,6 @@ import (
 
 	"github.com/sirupsen/logrus"
 )
-
-// Logger
 
 var logger = logrus.New()
 

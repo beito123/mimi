@@ -1,4 +1,4 @@
-package mimi
+package server
 
 /*
  * mimi
@@ -14,6 +14,7 @@ import (
 	"context"
 
 	uuid "github.com/satori/go.uuid"
+	"gitlab.com/beito123/mimi/util"
 )
 
 type ConsoleManager struct {
@@ -171,16 +172,16 @@ func (st *LogStacker) Changes(n int, t *LogTracker) []string {
 	t.ChangeCounter = 0
 
 	if t.ChangeCounter == -1 {
-		return st.Get(MinInt(n, MinInt(st.counter, st.logs.Len())))
+		return st.Get(util.MinInt(n, util.MinInt(st.counter, st.logs.Len())))
 	}
 
-	return st.Get(MinInt(n, MinInt(t.ChangeCounter, st.logs.Len())))
+	return st.Get(util.MinInt(n, util.MinInt(t.ChangeCounter, st.logs.Len())))
 }
 
 func (st *LogStacker) AllChanges(t *LogTracker) []string {
 	t.ChangeCounter = 0
 
-	return st.Get(MinInt(st.counter, st.logs.Len()))
+	return st.Get(util.MinInt(st.counter, st.logs.Len()))
 }
 
 func (st *LogStacker) AddTracker(t *LogTracker) {

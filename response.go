@@ -11,7 +11,11 @@ package mimi
 
 import (
 	"net/http"
+
+	jsoniter "github.com/json-iterator/go"
 )
+
+var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 var NotFoundResponse = &Base{
 	Status: http.StatusNotFound,

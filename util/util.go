@@ -1,4 +1,4 @@
-package mimi
+package util
 
 /*
  * mimi
@@ -16,11 +16,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-
-	jsoniter "github.com/json-iterator/go"
 )
-
-var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 func IP(addr string) (net.IP, error) {
 	ipstr, _, err := net.SplitHostPort(addr)

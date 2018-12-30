@@ -1,4 +1,4 @@
-package mimi
+package server
 
 /*
  * mimi
@@ -10,9 +10,9 @@ package mimi
 **/
 
 import (
+	"errors"
 	"regexp"
 	"strings"
-	"errors"
 
 	"gitlab.com/beito123/mimi/config"
 )
@@ -43,7 +43,7 @@ func NewProgramManager(lm *LoaderManager, programs []config.ProgramConfig) (*Pro
 		}
 
 		pm.Add(&Program{
-			Name: name,
+			Name:   name,
 			Loader: loader,
 		})
 	}
@@ -73,4 +73,3 @@ type Program struct {
 	Name   string
 	Loader Loader
 }
-

@@ -12,6 +12,8 @@ package mimi
 import (
 	"regexp"
 	"runtime"
+
+	logger "github.com/sirupsen/logrus"
 )
 
 // Error logs errors

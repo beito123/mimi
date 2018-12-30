@@ -1,4 +1,4 @@
-package mimi
+package server
 
 /*
  * mimi
@@ -10,16 +10,29 @@ package mimi
 **/
 
 import (
+	"github.com/gorilla/websocket"
 	"net/http"
+
+	"gitlab.com/beito123/mimi"
+	"gitlab.com/beito123/mimi/util"
 )
+
+var upgrader = websocket.Upgrader{
+	HandshakeTimeout: mimi.HandshakeTimeout,
+	ReadBufferSize:   1024,
+	WriteBufferSize:  1024,
+	Error: func(w http.ResponseWriter, r *http.Request, status int, reason error) {
+		mimi.Error("happened errors while it's connecting error: %s", reason)
+	},
+}
 
 type AuthHandler struct {
 	Token   string
 	Limiter *Limiter
 }
 
-func (hand *AuthHandler) Auth(rw Render, req *http.Request) (bool, error) {
-	ip, err := IP(req.RemoteAddr)
+func (hand *AuthHandler) Auth(rw mimi.Render, req *http.Request) (bool, error) {
+	ip, err := util.IP(req.RemoteAddr)
 	if err != nil {
 		return false, err
 	}
@@ -30,7 +43,7 @@ func (hand *AuthHandler) Auth(rw Render, req *http.Request) (bool, error) {
 	}
 
 	if !ok {
-		rw.Write(&Base{
+		rw.Write(&mimi.Base{
 			Status: http.StatusForbidden,
 			Error:  "You are blocked",
 		})
@@ -42,7 +55,7 @@ func (hand *AuthHandler) Auth(rw Render, req *http.Request) (bool, error) {
 	}
 
 	if hand.Token != token {
-		rw.Write(&Base{
+		rw.Write(&mimi.Base{
 			Status: http.StatusUnauthorized,
 			Error:  "Unauthorized",
 		})
@@ -59,11 +72,11 @@ type StreamHandler struct {
 }
 
 func (hand *StreamHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	render := NewJSONRender(rw)
+	render := mimi.NewJSONRender(rw)
 
 	ok, err := hand.Auth.Auth(render, req)
 	if err != nil {
-		Dump(err)
+		mimi.Dump(err)
 		return
 	}
 
@@ -73,12 +86,12 @@ func (hand *StreamHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) 
 
 	conn, err := upgrader.Upgrade(rw, req, nil)
 	if err != nil {
-		Dump(err)
+		mimi.Dump(err)
 		return
 	}
 
 	err = hand.Manager.NewSession(conn)
 	if err != nil {
-		Dump(err)
+		mimi.Dump(err)
 	}
 }
