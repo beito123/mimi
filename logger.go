@@ -14,19 +14,14 @@ import (
 	"runtime"
 )
 
-// Error
+// Error logs errors
+func Error(str string, args ...interface{}) {
+	stacks := Stack(1, 20)
+	logger.Errorf("Happened errors: "+str+"\n", args...)
 
-type ErrorReceiver interface {
-	HandleError(error)
-}
-
-type ErrorHandler struct {
-	receivers []ErrorReceiver
-}
-
-func (hand *ErrorHandler) Handle(err error) {
-	for _, recv := range hand.receivers {
-		recv.HandleError(err)
+	count := len(stacks)
+	for i, s := range stacks {
+		logger.Debugf("%d: %s@%s:%s:%d\n", count-i, s.PackageName, s.FileName, s.FunctionName, s.FileLine)
 	}
 }
 

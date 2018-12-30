@@ -31,4 +31,5 @@ const (
 	MaxProcessData = 20
 
 	UpdateInterval = 100 * time.Millisecond // 0.1
+	SessionUpdateInterval = UpdateInterval
 )

@@ -21,13 +21,14 @@ const (
 	IDResponseProgramList
 	IDStartProgram
 	IDStopProgram
+	IDRestartProgram
 	IDProgramStatus
 	IDRequestConsoleList
 	IDResponseConsoleList
 	IDJoinConsole
 	IDQuitConsole
-	IDConsoleMessages
-	IDSendCommands
+	IDConsoleMessage
+	IDSendCommand
 )
 
 var Protocol = map[byte]Packet{
@@ -42,21 +43,12 @@ var Protocol = map[byte]Packet{
 	IDResponseProgramList:       &ResponseProgramList{},
 	IDStartProgram:              &StartProgram{},
 	IDStopProgram:               &StopProgram{},
+	IDRestartProgram:            &RestartProgram{},
 	IDProgramStatus:             &ProgramStatus{},
 	IDRequestConsoleList:        &RequestConsoleList{},
 	IDResponseConsoleList:       &ResponseConsoleList{},
 	IDJoinConsole:               &JoinConsole{},
 	IDQuitConsole:               &QuitConsole{},
-	IDConsoleMessages:            &ConsoleMessages{},
-	IDSendCommands:              &SendCommands{},
-}
-
-// GetPacket returns a packet registered by Protocol
-func GetPacket(id byte) (Packet, bool) {
-	pk, ok := Protocol[id]
-	if !ok {
-		return nil, false
-	}
-
-	return pk.New(), true
+	IDConsoleMessage:            &ConsoleMessage{},
+	IDSendCommand:               &SendCommand{},
 }

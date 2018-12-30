@@ -11,20 +11,21 @@ package config
 
 type Config struct {
 	Server      ServerConfig      `toml:"server"`
-	Programs      []ProgramConfig    `toml:"programs"`
+	Programs    []ProgramConfig   `toml:"programs"`
 	Development DevelopmentConfig `toml:"dev"`
 }
 
 type ServerConfig struct {
 	Token string `toml:"token"`
 	Port  int    `toml:"port"`
+	UUID  string `toml:"uuid"`
 	Debug bool   `toml:"debug"`
 }
 
 type ProgramConfig struct {
-	Name    string            `toml:"name"`
-	Path    string            `toml:"path"`
-	Loader    string            `toml:"loader"`
+	Name          string            `toml:"name"`
+	Path          string            `toml:"path"`
+	Loader        string            `toml:"loader"`
 	LoaderOptions map[string]string `toml:"loader_options"`
 }
 

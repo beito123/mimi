@@ -9,74 +9,248 @@ package pks
  * http://opensource.org/licenses/mit-license.php
 **/
 
-// IncompatibleProtocol is a packet
+import uuid "github.com/satori/go.uuid"
+
+// IncompatibleProtocol is a error packet
+// It notifies that client's protocol is incompatible with server's protocol.
 // If a client is received, the connection is closed.
 // Server -> Client
 type IncompatibleProtocol struct {
-	Protocol int `json:"protocol"`
+	BasePacket
+
+	Protocol byte
 }
 
 func (IncompatibleProtocol) ID() byte {
 	return IDIncompatibleProtocol
 }
 
+func (pk *IncompatibleProtocol) Encode() error {
+	err := pk.BasePacket.Encode(pk)
+	if err != nil {
+		return err
+	}
+
+	err = pk.PutByte(pk.Protocol)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (pk *IncompatibleProtocol) Decode() error {
+	err := pk.BasePacket.Decode(pk)
+	if err != nil {
+		return err
+	}
+
+	pk.Protocol, err = pk.Byte()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (IncompatibleProtocol) New() Packet {
 	return new(IncompatibleProtocol)
 }
 
-// BadRequest is a packet
+// BadRequest is a error packet
+// It notifies that a request received client had problems for some reasons
 // If a client is received, the connection is closed.
 // Server -> Client
 type BadRequest struct {
-	Message string `json:"message"`
+	BasePacket
+
+	Message string
 }
 
 func (BadRequest) ID() byte {
 	return IDBadRequest
 }
 
+func (pk *BadRequest) Encode() error {
+	err := pk.BasePacket.Encode(pk)
+	if err != nil {
+		return err
+	}
+
+	err = pk.PutString(pk.Message)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (pk *BadRequest) Decode() error {
+	err := pk.BasePacket.Decode(pk)
+	if err != nil {
+		return err
+	}
+
+	pk.Message, err = pk.String()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (BadRequest) New() Packet {
 	return new(BadRequest)
 }
 
-// ConnectionOne is a first packet from server
+// ConnectionOne is a first packet sent from server
 // It notifies that connected with server
 type ConnectionOne struct {
-	UUID string `json:"uuid"` // Management UUID in server side
-	Time int64  `json:"time"` // Connected Time format: unix timestamp (second)
+	BasePacket
+
+	UUID uuid.UUID // Server's UUID
+	Time int64     // Connected Time format: unix timestamp (second)
 }
 
 func (ConnectionOne) ID() byte {
 	return IDConnectionOne
 }
 
+func (pk *ConnectionOne) Encode() error {
+	err := pk.BasePacket.Encode(pk)
+	if err != nil {
+		return err
+	}
+
+	err = pk.PutUUID(pk.UUID)
+	if err != nil {
+		return err
+	}
+
+	err = pk.PutLong(pk.Time)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (pk *ConnectionOne) Decode() error {
+	err := pk.BasePacket.Decode(pk)
+	if err != nil {
+		return err
+	}
+
+	pk.UUID, err = pk.GetUUID()
+	if err != nil {
+		return err
+	}
+
+	pk.Time, err = pk.Long()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (ConnectionOne) New() Packet {
 	return new(ConnectionOne)
 }
 
-// ConnectionRequest is a packet
+// ConnectionRequest is a connection packet sent by client
 // Client -> Server
 type ConnectionRequest struct {
-	ClientProtocol int    `json:"protocol"`
-	ClientUUID     string `json:"cid"`
+	BasePacket
+
+	ClientProtocol byte
+	ClientUUID     uuid.UUID
 }
 
 func (ConnectionRequest) ID() byte {
 	return IDConnectionRequest
 }
 
+func (pk *ConnectionRequest) Encode() error {
+	err := pk.BasePacket.Encode(pk)
+	if err != nil {
+		return err
+	}
+
+	err = pk.PutByte(pk.ClientProtocol)
+	if err != nil {
+		return err
+	}
+
+	err = pk.PutUUID(pk.ClientUUID)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (pk *ConnectionRequest) Decode() error {
+	err := pk.BasePacket.Decode(pk)
+	if err != nil {
+		return err
+	}
+
+	pk.ClientProtocol, err = pk.Byte()
+	if err != nil {
+		return err
+	}
+
+	pk.ClientUUID, err = pk.GetUUID()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (ConnectionRequest) New() Packet {
 	return new(ConnectionRequest)
 }
 
-// ConnectionResponse is a packet
+// ConnectionResponse is a packet notifying it is established connection with server
 // Client -> Server
 type ConnectionResponse struct {
-	Time int64 `json:"time"`
+	BasePacket
+
+	Time int64
 }
 
 func (ConnectionResponse) ID() byte {
 	return IDConnectionResponse
+}
+
+func (pk *ConnectionResponse) Encode() error {
+	err := pk.BasePacket.Encode(pk)
+	if err != nil {
+		return err
+	}
+
+	err = pk.PutLong(pk.Time)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (pk *ConnectionResponse) Decode() error {
+	err := pk.BasePacket.Decode(pk)
+	if err != nil {
+		return err
+	}
+
+	pk.Time, err = pk.Long()
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (ConnectionResponse) New() Packet {

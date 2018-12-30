@@ -41,24 +41,37 @@ const (
 	StateDisconnected
 )
 
+type Session interface {
+	Addr() net.Addr
+	UUID() uuid.UUID
+	SetUUID(uuid.UUID)
+	ClientUUID() uuid.UUID
+	SetClientUUID(uuid.UUID)
+	State() ConnectionState
+	SetState(ConnectionState)
+	Update([]PacketHandler)
+	Close()
+	SendPacket(pks.Packet) error
+	SendBytes([]byte) error
+}
+
 type PacketHandler interface {
-	HandlePacket(*Session, pks.Packet)
+	HandlePacket(session Session, pk pks.Packet)
 }
 
 type SessionManager struct {
 	Handlers []PacketHandler
-	Error    *ErrorHandler
 
-	sessions cmap.ConcurrentMap // map[uuid.UUID]*Session
+	sessions cmap.ConcurrentMap // map[uuid.UUID]Session
 }
 
-func (sm *SessionManager) getSession(uid uuid.UUID) (*Session, bool) {
+func (sm *SessionManager) getSession(uid uuid.UUID) (Session, bool) {
 	val, ok := sm.sessions.Get(uid.String())
 	if !ok {
 		return nil, false
 	}
 
-	session, ok := val.(*Session)
+	session, ok := val.(Session)
 	if !ok {
 		panic("couldn't convert to Session")
 	}
@@ -66,13 +79,13 @@ func (sm *SessionManager) getSession(uid uuid.UUID) (*Session, bool) {
 	return session, true
 }
 
-func (sm *SessionManager) setSession(session *Session) {
-	sm.sessions.Set(session.UUID.String(), session)
+func (sm *SessionManager) setSession(session Session) {
+	sm.sessions.Set(session.UUID().String(), session)
 }
 
-func (sm *SessionManager) rangeSessions(f func(session *Session) bool) {
+func (sm *SessionManager) rangeSessions(f func(session Session) bool) {
 	for item := range sm.sessions.IterBuffered() {
-		session, ok := item.Val.(*Session)
+		session, ok := item.Val.(Session)
 		if !ok {
 			panic("couldn't convert to Session")
 		}
@@ -95,7 +108,7 @@ func (sm *SessionManager) Start(ctx context.Context) {
 		default:
 		}
 
-		sm.rangeSessions(func(session *Session) bool {
+		sm.rangeSessions(func(session Session) bool {
 			session.Update(sm.Handlers)
 
 			return true
@@ -104,7 +117,7 @@ func (sm *SessionManager) Start(ctx context.Context) {
 }
 
 func (sm *SessionManager) closeSessions() {
-	sm.rangeSessions(func(session *Session) bool {
+	sm.rangeSessions(func(session Session) bool {
 		session.Close()
 
 		return true
@@ -117,11 +130,12 @@ func (sm *SessionManager) NewSession(conn *websocket.Conn) error {
 		return err
 	}
 
-	session := &Session{
-		Conn:  conn,
-		State: StateConnecting,
-		UUID:  uid,
-		Error: sm.Error,
+	session := &ServerSession{
+		BaseSession: BaseSession{
+			Conn:  conn,
+			state: StateConnecting,
+			uuid:  uid,
+		},
 	}
 
 	sm.setSession(session)
@@ -140,14 +154,9 @@ func (sm *SessionManager) SendPacket(uid uuid.UUID, pk pks.Packet) error {
 	return session.SendPacket(pk)
 }
 
-func (sm *SessionManager) SendPacketAll(pk pks.Packet) error {
-	data, err := pks.EncodePacket(pk)
-	if err != nil {
-		return err
-	}
-
-	sm.rangeSessions(func(session *Session) bool {
-		err = session.SendData(data)
+func (sm *SessionManager) SendPacketAll(pk pks.Packet) (err error) {
+	sm.rangeSessions(func(session Session) bool {
+		err = session.SendPacket(pk)
 		if err != nil {
 			return false
 		}
@@ -160,29 +169,51 @@ func (sm *SessionManager) SendPacketAll(pk pks.Packet) error {
 
 var errClosed = errors.New("already closed")
 
-type Session struct {
-	Conn  *websocket.Conn
-	State ConnectionState
+type BaseSession struct {
+	Conn *websocket.Conn
 
-	UUID       uuid.UUID
-	ClientUUID uuid.UUID
-
-	Error *ErrorHandler
+	state      ConnectionState
+	uuid       uuid.UUID
+	clientUUID uuid.UUID
 
 	receivedData chan []byte
 	sendData     chan []byte
 	closeCh      chan bool
 }
 
-func (session *Session) HandleError(err error) {
-	session.Error.Handle(errors.New("Session IP:" + session.Addr().String() + " " + err.Error()))
+func (session *BaseSession) HandleError(err error) {
+	Error("Session IP: %s Error: %s", session.Addr().String(), err.Error())
 }
 
-func (session *Session) Addr() net.Addr {
+func (session *BaseSession) UUID() uuid.UUID {
+	return session.uuid
+}
+
+func (session *BaseSession) SetUUID(uid uuid.UUID) {
+	session.uuid = uid
+}
+
+func (session *BaseSession) ClientUUID() uuid.UUID {
+	return session.clientUUID
+}
+
+func (session *BaseSession) SetClientUUID(uid uuid.UUID) {
+	session.clientUUID = uid
+}
+
+func (session *BaseSession) Addr() net.Addr {
 	return session.Conn.RemoteAddr()
 }
 
-func (session *Session) Start() {
+func (session *BaseSession) State() ConnectionState {
+	return session.state
+}
+
+func (session *BaseSession) SetState(state ConnectionState) {
+	session.state = state
+}
+
+func (session *BaseSession) Start() {
 
 	session.receivedData = make(chan []byte, MaxReceiveStack)
 	session.sendData = make(chan []byte, MaxSendStack)
@@ -236,8 +267,8 @@ func (session *Session) Start() {
 	}()
 }
 
-func (session *Session) Close() {
-	if session.State != StateDisconnected {
+func (session *BaseSession) Close() {
+	if session.State() != StateDisconnected {
 		return
 	}
 
@@ -248,10 +279,10 @@ func (session *Session) Close() {
 
 	session.Conn.Close()
 
-	session.State = StateDisconnected
+	session.SetState(StateDisconnected)
 }
 
-func (session *Session) Update(handlers []PacketHandler) {
+func (session *BaseSession) Update(handlers []PacketHandler) {
 	var received [][]byte
 	for i := 0; i < MaxProcessData; i++ {
 		select {
@@ -262,10 +293,25 @@ func (session *Session) Update(handlers []PacketHandler) {
 		}
 	}
 
-	for _, data := range received {
-		pk, err := pks.DecodePacket(data)
+	for _, b := range received {
+		if len(b) == 0 {
+			return
+		}
+
+		pk, ok := pks.GetPacket(b[0])
+		if !ok {
+			logger.Debugf("Received a unknown packet (0x%x)", b[0])
+
+			// TODO: implements to unknown packet
+			return
+		}
+
+		pk.SetBytes(b)
+
+		err := pk.Decode()
 		if err != nil {
 			session.HandleError(err)
+			return
 		}
 
 		for _, hand := range handlers {
@@ -274,17 +320,13 @@ func (session *Session) Update(handlers []PacketHandler) {
 	}
 }
 
-func (session *Session) SendPacket(pk pks.Packet) error {
-	data, err := pks.EncodePacket(pk)
-	if err != nil {
-		return err
-	}
-
-	return session.SendData(data)
+// SendPacket sends a encoded packet to session
+func (session *BaseSession) SendPacket(pk pks.Packet) error {
+	return session.SendBytes(pk.Bytes())
 }
 
-func (session *Session) SendData(data []byte) error {
-	if session.State == StateDisconnected {
+func (session *BaseSession) SendBytes(data []byte) error {
+	if session.State() == StateDisconnected {
 		return errClosed
 	}
 
@@ -293,17 +335,73 @@ func (session *Session) SendData(data []byte) error {
 	return nil
 }
 
+type ServerSession struct {
+	BaseSession
+
+	console *Console
+	tracker *LogTracker
+}
+
+func (session *ServerSession) Update(handlers []PacketHandler) {
+	session.Update(handlers)
+
+	if session.State() != StateConnected {
+		return
+	}
+
+	if session.console == nil {
+		return
+	}
+
+	session.SendPacket(&pks.ConsoleMessages{
+		Messages: session.console.Lines(session.tracker),
+	})
+}
+
+func (session *ServerSession) HasJoined() bool {
+	return session.console != nil
+}
+
+func (session *ServerSession) JoinConsole(con *Console) error {
+	if con.Closed() {
+		return errors.New("already closed the console")
+	}
+
+	session.console = con
+	session.tracker = NewLogTracker()
+
+	logger.Debugf("Session(%s) joins a console(%s)", session.Addr().String(), con.UUID.String())
+
+	return nil
+}
+
+func (session *ServerSession) QuitConsole() error {
+	if !session.HasJoined() {
+		return errors.New("not joined a console")
+	}
+
+	session.console = nil
+	session.tracker = nil
+
+	return nil
+}
+
 type ServerSessionHandler struct {
 	ProgramManager *ProgramManager
 	ConsoleManager *ConsoleManager
+	Console        *Console
 	IngoreProtocol bool
 }
 
 func (sp *ServerSessionHandler) HandlePacket(session Session, pk pks.Packet) {
 	switch npk := pk.(type) {
 	case *pks.ConnectionRequest:
-		if session.State != StateConnecting {
-			//
+		logger.Debugf("Received a ConnectionRequest packet from %s\n", session.Addr().String())
+
+		if session.State() != StateConnecting {
+			logger.Debugf("Received a ConnectionRequest packet, but already connected\n")
+
+			// TODO: implements to reconnect
 
 			return
 		}
@@ -318,49 +416,133 @@ func (sp *ServerSessionHandler) HandlePacket(session Session, pk pks.Packet) {
 			return
 		}
 
-		uid, err := uuid.FromString(npk.ClientUUID)
-		if err != nil {
-			session.SendPacket(&pks.BadRequest{
-				Message: "couldn't parse a uuid",
-			})
+		session.SetClientUUID(npk.ClientUUID)
 
-			session.HandleError(err)
-
-			session.Close()
-
-			return
-		}
-
-		session.ClientUUID = uid
-
-		session.State = StateConnected
+		session.SetState(StateConnected)
 
 		session.SendPacket(&pks.ConnectionResponse{
 			Time: time.Now().Unix(),
 		})
 
-		logger.Debugf("Established new connection IP: %s CID: %s", session.Addr().String(), session.ClientUUID.String())
+		logger.Debugf("Established new connection IP: %s CID: %s\n", session.Addr().String(), session.ClientUUID().String())
 	case *pks.RequestProgramList:
-		logger.Debugf("Received a RequestProgramList packet")
+		logger.Debugf("Received a RequestProgramList packet\n")
 
 		rpk := &pks.ResponseProgramList{}
 
 		for _, p := range sp.ProgramManager.Programs {
-			rpk.Programs = append(rpk.Programs, pks.Program {
-				Name: p.Name,
-				LoaderName:  p.Loader.Name(),
+			rpk.Programs = append(rpk.Programs, &pks.Program{
+				Name:       p.Name,
+				LoaderName: p.Loader.Name(),
 			})
 		}
 
 		session.SendPacket(rpk)
-	case *pks.DisconnectionNotification:
-		logger.Debugf("Received disconnection packet IP: %s CID: %s", session.Addr().String(), session.ClientUUID.String())
+	case *pks.StartProgram:
+		logger.Debugf("Received a StartProgram packet\n")
 
-		if session.State != StateDisconnected {
+		program, ok := sp.ProgramManager.Get(npk.ProgramName)
+		if !ok {
+			session.SendPacket(&pks.ErrorMessage{
+				Error: ErrIDProgramNotFound,
+			})
+
+			return
+		}
+
+		con, err := sp.ConsoleManager.NewConsole(program.Loader)
+		if err != nil {
+			logger.Errorln(err)
+
+			session.SendPacket(&pks.ErrorMessage{
+				Error: ErrIDInternalError,
+			})
+
+			return
+		}
+
+		session.SendPacket(&pks.ProgramStatus{
+			ProgramName: program.Name,
+			ConsoleUUID: con.UUID,
+			Running:     true,
+		})
+	case *pks.JoinConsole:
+		logger.Debugf("Received a JoinConsole packet\n")
+
+		con, ok := sp.ConsoleManager.Get(npk.ConsoleUUID)
+		if !ok {
+			session.SendPacket(&pks.ErrorMessage{
+				Error: ErrIDConsoleNotFound,
+			})
+
+			return
+		}
+
+		serSession, ok := session.(*ServerSession)
+		if !ok {
+			Error("couldn't convert to *ServerSession")
+
+			session.SendPacket(&pks.ErrorMessage{
+				Error: ErrIDInternalError,
+			})
+
+			return
+		}
+
+		if con.Closed() {
+			session.SendPacket(&pks.ErrorMessage{
+				Error: ErrIDConsoleAlreadyClosed,
+			})
+
+			return
+		}
+
+		err := serSession.JoinConsole(con)
+		if err != nil {
+			Error("couldn't join a console error: %s", err.Error())
+
+			session.SendPacket(&pks.ErrorMessage{
+				Error: ErrIDInternalError,
+			})
+		}
+	case *pks.QuitConsole:
+		logger.Debugf("Received a QuitConsole packet\n")
+
+		serSession, ok := session.(*ServerSession)
+		if !ok {
+			Error("couldn't convert to *ServerSession")
+
+			session.SendPacket(&pks.ErrorMessage{
+				Error: ErrIDInternalError,
+			})
+
+			return
+		}
+
+		if !serSession.HasJoined() {
+			session.SendPacket(&pks.ErrorMessage{
+				Error: ErrIDSessionNotJoinedConsole,
+			})
+
+			return
+		}
+
+		err := serSession.QuitConsole()
+		if err != nil {
+			Error("couldn't join a console error: %s", err.Error())
+
+			session.SendPacket(&pks.ErrorMessage{
+				Error: ErrIDInternalError,
+			})
+		}
+	case *pks.DisconnectionNotification:
+		logger.Debugf("Received disconnection packet IP: %s CID: %s\n", session.Addr().String(), session.ClientUUID().String())
+
+		if session.State() != StateDisconnected {
 			session.Close()
 		}
 	default:
-		logger.Debugf("Received unknown packet ID:%d", npk.ID())
+		logger.Debugf("Received unknown packet ID:%d\n", npk.ID())
 	}
 }
 
@@ -373,48 +555,38 @@ func (sp *ClientSessionHandler) HandlePacket(session Session, pk pks.Packet) {
 	case *pks.ConnectionOne:
 		logger.Debugf("Received Connection One packet")
 
-		if session.State != StateConnecting {
-			//
-
+		if session.State() != StateConnecting {
+			logger.Debugf("Received a ConnectionOne packet, but already connected\n")
 			return
 		}
 
-		uid, err := uuid.FromString(npk.UUID)
-		if err != nil {
-			session.HandleError(err)
-
-			session.Close()
-			return
-		}
-
-		session.UUID = uid
+		session.SetUUID(npk.UUID)
 
 		session.SendPacket(&pks.ConnectionRequest{
 			ClientProtocol: ProtocolVersion,
-			ClientUUID:     session.ClientUUID.String(),
+			ClientUUID:     session.ClientUUID(),
 		})
 
 		logger.Debugf("Send Connection Request packet")
 	case *pks.ConnectionResponse:
 		logger.Debugf("Received Connection Response packet")
 
-		if session.State != StateConnecting {
+		if session.State() != StateConnecting {
 			//
 
 			return
 		}
 
-		session.State = StateConnected
+		session.SetState(StateConnected)
 
 		logger.Debugf("Established a connection for a server")
 	case *pks.DisconnectionNotification:
-		logger.Debugf("Received disconnection packet IP: %s CID: %s", session.Addr().String(), session.ClientUUID.String())
+		logger.Debugf("Received disconnection packet IP: %s CID: %s", session.Addr().String(), session.ClientUUID().String())
 
-		if session.State != StateDisconnected {
+		if session.State() != StateDisconnected {
 			session.Close()
 		}
 	default:
 		logger.Debugf("Received unknown packet ID:%d", npk.ID())
 	}
 }
-

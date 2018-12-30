@@ -11,16 +11,46 @@ package mimi
 
 const (
 	ErrIDJaga = iota
+	ErrIDInternalError
+	ErrIDProgramNotFound
+	ErrIDProgramAlreadyRunning
+	ErrIDConsoleNotFound
+	ErrIDConsoleAlreadyClosed
+	ErrIDSessionNotJoinedConsole
 )
 
-type Error struct {
+type ErrorMessage struct {
 	ID      int
 	Message string
 }
 
 var (
-	ErrJaga = &Error{
+	ErrJaga = &ErrorMessage{
 		ID:      ErrIDJaga,
-		Message: "jagajaga",
+		Message: "Jagajaga",
+	}
+	ErrInternalError = &ErrorMessage{
+		ID:      ErrIDInternalError,
+		Message: "Internal error",
+	}
+	ErrProgramNotFound = &ErrorMessage{
+		ID:      ErrIDProgramNotFound,
+		Message: "A program is not found",
+	}
+	ErrProgramAlreadyRunning = &ErrorMessage{
+		ID:      ErrIDProgramAlreadyRunning,
+		Message: "A program is already running",
+	}
+	ErrConsoleNotFound = &ErrorMessage{
+		ID:      ErrIDConsoleNotFound,
+		Message: "A console is not found",
+	}
+	ErrConsoleAlreadyClosed = &ErrorMessage{
+		ID:      ErrIDConsoleAlreadyClosed,
+		Message: "A console is already closed",
+	}
+	ErrSessionNotJoined = &ErrorMessage{
+		ID:      ErrIDSessionNotJoinedConsole,
+		Message: "A session doesn't join a console",
 	}
 )
